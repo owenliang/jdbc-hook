@@ -23,7 +23,7 @@ public class MySQLTransformer implements ClassFileTransformer {
                 CtMethod connectMethod = driverClass.getDeclaredMethod("connect");
                 connectMethod.insertBefore(
                         "cc.yuerblog.MySQLManager.ConnectParams connectParams=cc.yuerblog.MySQLManager.get().modifyConnectParams($1,$2);$1=connectParams.url;$2=connectParams.info;");
-                connectMethod.insertAfter("{if($_!=null) {cc.yuerblog.MySQLManager.get().addConnection($_);}}"); // 记录JDBC连接
+                connectMethod.insertAfter("{if($_!=null) {$_=cc.yuerblog.MySQLManager.get().addConnection($_);}}"); // 记录JDBC连接
                 return driverClass.toBytecode();
             } catch (Exception e) {
                 System.out.println(e);
