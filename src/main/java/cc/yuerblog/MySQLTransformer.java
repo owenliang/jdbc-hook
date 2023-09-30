@@ -13,23 +13,33 @@ public class MySQLTransformer implements ClassFileTransformer {
     @Override
     public byte[] transform(ClassLoader loader, String className, Class<?> classBeingRedefined,
             ProtectionDomain protectionDomain, byte[] classfileBuffer) throws IllegalClassFormatException {
-        className = className.replace("/", ".");
-        if (!className.equals("com.mysql.cj.jdbc.NonRegisteringDriver")) {
-            return null;
-        }
 
         ClassPool classPool = ClassPool.getDefault();
+        className = className.replace("/", ".");
 
-        try {
-            CtClass driverClass = classPool.get(className);
-            CtMethod connectMethod = driverClass.getDeclaredMethod("connect");
-            System.out.println(className);
-            connectMethod.insertBefore("{System.out.println($1);$1=\"jdbc:mysql://127.0.0.1:3306/db01\";System.out.println($1);}");    // DEMO: JDBC URL篡改
-            return driverClass.toBytecode();
-        } catch (Exception e) {
-            System.out.println(e);
+        if (className.equals("com.mysql.cj.jdbc.NonRegisteringDriver")) {
+            try {
+                CtClass driverClass = classPool.get(className);
+                CtMethod connectMethod = driverClass.getDeclaredMethod("connect");
+                connectMethod.insertBefore(
+                        "cc.yuerblog.MySQLManager.ConnectParams connectParams=cc.yuerblog.MySQLManager.get().modifyConnectParams($1,$2);$1=connectParams.url;$2=connectParams.info;");
+                connectMethod.insertAfter("{if($_!=null) {cc.yuerblog.MySQLManager.get().addConnection($_);}}"); // 记录JDBC连接
+                return driverClass.toBytecode();
+            } catch (Exception e) {
+                System.out.println(e);
+            }
         }
-
+        if (className.equals("com.mysql.cj.jdbc.ConnectionImpl")) {
+            try {
+                CtClass driverClass = classPool.get(className);
+                CtMethod connectMethod = driverClass.getDeclaredMethod("close");
+                connectMethod.insertAfter("{cc.yuerblog.MySQLManager.get().removeConnection($0);}"); // 遗忘JDBC连接
+                connectMethod.addCatch("{cc.yuerblog.MySQLManager.get().removeConnection($0);throw $e;}",classPool.get("java.sql.SQLException"));   // 异常也保证回收
+                return driverClass.toBytecode();
+            } catch (Exception e) {
+                System.out.println(e);
+            }
+        }
         return null;
     }
 
